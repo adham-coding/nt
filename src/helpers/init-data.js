@@ -10,7 +10,7 @@ const DATA_FILE = join(DATA_DIR, "users.json");
 export async function initializeData() {
   await ensureDirectory(DATA_DIR);
   await ensureFile(DATA_FILE, async () => {
-    const users = await httpFetch(DATA_URL);
+    const users = JSON.parse(await httpFetch(DATA_URL));
 
     await setUsers(users);
   });

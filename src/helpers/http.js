@@ -17,48 +17,57 @@ export function httpFetch(url = "") {
         response.on("error", reject);
         response.on("data", (chunk) => chunks.push(chunk));
         response.on("end", () => {
-          try {
-            const body = Buffer.concat(chunks).toString("utf8");
-
-            resolve(JSON.parse(body));
-          } catch (error) {
-            reject(error);
-          }
+          resolve(Buffer.concat(chunks).toString("utf8"));
         });
       })
       .on("error", reject);
   });
 }
 
-export function parseRequest(request) {
-  const method = request.method ?? "GET";
-
+export function parseRequest(request, { allowDuplicates = false } = {}) {
   const url = new URL(
     request.url ?? "/",
-    `http://${request.headers.host ?? "localhost"}`,
+    `http://${request.headers?.host ?? "localhost"}`,
   );
+  const query = Object.create(null);
 
-  const [endpoint, ...paths] = url.pathname
-    .toLowerCase()
-    .split("/")
-    .filter(Boolean);
+  for (const [key, value] of url.searchParams) {
+    if (!(key in query)) {
+      query[key] = value;
 
-  const query = {};
+      continue;
+    }
 
-  for (const key of url.searchParams.keys()) {
-    const values = url.searchParams.getAll(key);
-
-    query[key] = values.length === 1 ? values[0] : values;
+    if (Array.isArray(query[key])) {
+      if (allowDuplicates || !query[key].includes(value)) {
+        query[key].push(value);
+      }
+    } else {
+      if (query[key] === value) {
+        if (allowDuplicates) {
+          query[key] = [query[key], value];
+        }
+      } else query[key] = [query[key], value];
+    }
   }
 
+  const segments = url.pathname.split("/").filter(Boolean);
+  const [endpoint = "", ...paths] = segments;
+
   return {
-    method,
-    endpoint,
-    paths,
     url,
     pathname: url.pathname,
-    search: url.search,
+    endpoint,
+    paths,
     query,
+    search: url.search,
+    method: (request.method ?? "GET").toUpperCase(),
+    host: url.host,
+    hostname: url.hostname,
+    port: url.port,
+    protocol: url.protocol,
+    origin: url.origin,
+    hash: url.hash,
     headers: request.headers,
   };
 }
@@ -70,24 +79,20 @@ export function getRequestBody(request) {
     request.on("error", reject);
     request.on("data", (chunk) => chunks.push(chunk));
     request.on("end", () => {
-      try {
-        const body = Buffer.concat(chunks).toString("utf8");
-
-        resolve(JSON.parse(body));
-      } catch (error) {
-        reject(error);
-      }
+      resolve(Buffer.concat(chunks).toString("utf8"));
     });
   });
 }
 
-export function sendJson(response, statusCode, body) {
+export function sendJson(response, statusCode, body = {}) {
   response.setHeader("Content-Type", "application/json; charset=utf-8");
   response.writeHead(statusCode);
 
-  if (body != null || typeof body != "string")
-    response.end(JSON.stringify(body));
-  else response.end(body);
+  if (typeof body != "string") {
+    body = JSON.stringify(body);
+  }
+
+  response.end(body);
 }
 
 export function sendError(response, statusCode, body) {

@@ -20,7 +20,7 @@ export async function postHandler({ request, response, paths }) {
   let payload;
 
   try {
-    payload = await getRequestBody(request);
+    payload = JSON.parse(await getRequestBody(request));
   } catch {
     return sendError(response, 400, {
       message: "Invalid JSON.",
